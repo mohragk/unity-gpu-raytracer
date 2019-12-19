@@ -51,6 +51,9 @@ struct Sphere {
 
 	float3 albedo;
 	float3 specular;
+
+	float smoothness;
+	float3 emission;
 };
 
 StructuredBuffer<Sphere> _Spheres;
@@ -92,6 +95,9 @@ struct RayHit {
 
 	float3 albedo;
 	float3 specular;
+
+	float smoothness;
+	float3 emission;
 };
 
 RayHit createRayHit() {
@@ -103,6 +109,9 @@ RayHit createRayHit() {
 	hit.albedo   = float3(0.0f, 0.0f, 0.0f);
 	hit.specular = float3(0.0f, 0.0f, 0.0f);
 
+	hit.smoothness = 0.0f;
+	hit.emission = float3(0.0f, 0.0f, 0.0f);
+
 	return hit;
 }
 
@@ -113,8 +122,10 @@ void intersectGroundPlane(Ray ray, inout RayHit bestHit) {
 		bestHit.distance = t;
 		bestHit.position = ray.origin + t * ray.direction;
 		bestHit.normal = float3(0.0f, 1.0f, 0.0f);
-		bestHit.albedo = float3(0.9, 0.9, 0.9);
-		bestHit.specular = float3(0.01, 0.01, 0.01);
+		bestHit.albedo = 0.5f;
+		bestHit.specular = 0.03f;
+		bestHit.smoothness = 0.2f;
+		bestHit.emission = float3(0.0f, 0.0f, 0.0f);
 	}
 
 }
@@ -135,6 +146,8 @@ void intersectSphere(Ray ray, inout RayHit bestHit, Sphere sphere) {
 		bestHit.normal = normalize(bestHit.position - sphere.position);
 		bestHit.albedo = sphere.albedo;
 		bestHit.specular = sphere.specular;
+		bestHit.smoothness = sphere.smoothness;
+		bestHit.emission = sphere.emission;
 	}
 }
 
@@ -151,6 +164,12 @@ RayHit trace(Ray ray) {
 	
 	return bestHit;
 }
+
+
+float SmoothnessToPhongAlpha(float s) {
+	return pow(1000.0f, s * s);
+}
+
 
 
 float3x3 GetTangentSpace(float3 normal) {
@@ -195,20 +214,23 @@ float3 shade(inout Ray ray, RayHit hit) {
 		if (roulette < specChance) {
 
 			// Specular reflection
-			float alpha = 15.0f;
+			float alpha = SmoothnessToPhongAlpha(hit.smoothness);
 			ray.origin = hit.position + hit.normal * 0.001f;
 			ray.direction = SampleHemisphere(reflect(ray.direction, hit.normal), alpha);
 			float f = (alpha + 2) / (alpha + 1);
 			ray.energy *= (1.0 / specChance) * hit.specular * sdot(hit.normal, ray.direction, f);
 		}
-		else {
+		else if (diffChance > 0 && roulette < specChance + diffChance) {
 			// Diffuse reflection
 			ray.origin = hit.position + hit.normal * 0.001f;
 			ray.direction = SampleHemisphere(hit.normal, 1.0f);
 			ray.energy *= (1.0 / diffChance) * 2 * hit.albedo * sdot(hit.normal, ray.direction);
 		}
+		else {
+			ray.energy = 0.0f;
+		}
 
-		return 0.0f;
+		return hit.emission;
 	}
 	else {
 
