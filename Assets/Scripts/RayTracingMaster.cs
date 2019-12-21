@@ -47,6 +47,10 @@ public class RayTracingMaster : MonoBehaviour
 
         _transformsToWatch.Add(directionalLight.transform);
         _transformsToWatch.Add(transform);
+
+
+
+        print(SystemInfo.graphicsDeviceName);
     }
 
 
